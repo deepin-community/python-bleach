@@ -1,0 +1,47 @@
+From: Debian Python Modules Team
+ <python-modules-team@lists.alioth.debian.org>
+Date: Tue, 15 Jan 2019 00:39:20 -0500
+Subject: remove-privacy-breach
+
+===================================================================
+---
+ README.rst               | 9 ---------
+ tests_website/index.html | 5 -----
+ 2 files changed, 14 deletions(-)
+
+diff --git a/README.rst b/README.rst
+index 504e517..ff969f8 100644
+--- a/README.rst
++++ b/README.rst
+@@ -2,15 +2,6 @@
+ Bleach
+ ======
+ 
+-.. image:: https://github.com/mozilla/bleach/workflows/Test/badge.svg
+-   :target: https://github.com/mozilla/bleach/actions?query=workflow%3ATest
+-
+-.. image:: https://github.com/mozilla/bleach/workflows/Lint/badge.svg
+-   :target: https://github.com/mozilla/bleach/actions?query=workflow%3ALint
+-
+-.. image:: https://badge.fury.io/py/bleach.svg
+-   :target: http://badge.fury.io/py/bleach
+-
+ Bleach is an allowed-list-based HTML sanitizing library that escapes or strips
+ markup and attributes.
+ 
+diff --git a/tests_website/index.html b/tests_website/index.html
+index 95df20f..056cb23 100644
+--- a/tests_website/index.html
++++ b/tests_website/index.html
+@@ -21,11 +21,6 @@
+     </head>
+     <body>
+         <h2>Python Bleach 4.0.0</h2>
+-        <p>
+-            <a href="http://badge.fury.io/py/bleach"><img style="max-width:100%;" alt="pypi version" src="https://badge.fury.io/py/bleach.svg"></a>
+-            <a href="https://github.com/mozilla/bleach/actions?query=workflow%3ATest"><img style="max-width:100%;" alt="Build Status" src="https://github.com/mozilla/bleach/workflows/Test/badge.svg"></a>
+-        </p>
+-
+         <div class="demo">
+             <h3>Demo</h3>
+             <p>

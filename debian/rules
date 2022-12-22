@@ -1,0 +1,14 @@
+#!/usr/bin/make -f
+#export DH_VERBOSE=1
+export PYBUILD_NAME=bleach
+
+%:
+	dh $@ --with python3,sphinxdoc --buildsystem=pybuild
+
+execute_after_dh_auto_build:
+	PYTHONPATH=. http_proxy='localhost' python3 -m sphinx -N -bhtml docs/ build/html
+
+execute_after_dh_auto_install:
+	# Don't ship the vendored html5lib in the binary, not used
+	rm -rf $(CURDIR)/debian/python3-bleach/usr/lib/python3.*/dist-packages/bleach/_vendor/html5lib*
+	rm -rf $(CURDIR)/debian/python3-bleach/usr/lib/python3.*/dist-packages/bleach/_vendor/vendor*

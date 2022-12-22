@@ -1,0 +1,3 @@
+Tests: py3
+Depends: @, python3-pytest, python3-pytest-runner, python3-all, python3-setuptools, python3-html5lib, python3-six
+Restrictions: allow-stderr
