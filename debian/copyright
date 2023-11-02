@@ -3,7 +3,8 @@ Upstream-Name: Bleach
 Source: https://github.com/mozilla/bleach/
 
 Files: *
-Copyright: 2012-2015, James Socol; 2015-2017, Mozilla Foundation
+Copyright: 2012-2015, James Socol
+ 2015-2023, Mozilla Foundation
 License: Apache-2.0
 
 Files: bleach/_vendor/html5lib*
@@ -16,7 +17,9 @@ License: PSF
 Comment: urllib.parse from python 3.6.14
 
 Files: debian/*
-Copyright: 2012-2014 Per Andersson <avtobiff@gmail.com>, 2017 Scott Kitterman <scott@kitterman.com>
+Copyright: 2012-2014, Per Andersson <avtobiff@gmail.com>
+ 2017, Scott Kitterman <scott@kitterman.com>
+ 2022-2023, Carsten Schoenert <c.schoenert@t-online.de>
 License: Apache-2.0
 
 License: Apache-2.0

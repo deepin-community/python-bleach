@@ -1,3 +1,90 @@
+python-bleach (6.1.0-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream version 6.1.0
+  * Rebuild patch queue from patch-queue branch
+    Modified patch:
+    Privacy-Don-t-link-to-external-resources.patch
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sat, 21 Oct 2023 19:25:20 +0200
+
+python-bleach (6.0.0-2) unstable; urgency=medium
+
+  * Team upload.
+  * Upload to unstable
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Wed, 21 Jun 2023 19:18:15 +0200
+
+python-bleach (6.0.0-1) experimental; urgency=medium
+
+  * Team upload.
+  * New upstream version 6.0.0
+  * Rebuild patch queue from patch-queue branch
+    Modified patch:
+    Don-t-vendor-the-included-html5lib.patch
+  * d/control: Fix BuildProfileSpecs syntax
+  * d/copyright: Update years data of contributors
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Fri, 26 May 2023 15:26:17 +0200
+
+python-bleach (5.0.1-2) unstable; urgency=medium
+
+  * Team upload.
+
+  [ Scott Kitterman ]
+  * Remove myself from uploaders
+
+  [ Debian Janitor ]
+  * Set upstream metadata fields: Contact.
+  * Update standards version to 4.6.2, no changes needed.
+
+  [ Colin Watson ]
+  * Recommend python3-tinycss2 (closes: #1024833).
+
+ -- Colin Watson <cjwatson@debian.org>  Mon, 09 Jan 2023 10:55:59 +0000
+
+python-bleach (5.0.1-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream version 5.0.1
+  * d/control: Clean up and add BuildProfileSpec data
+  * d/rules: Use dh_sphinxdoc for documentation build
+  * d/copyright: Update year data
+  * d/u/metadata: Add entry for Security-Contact
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sun, 11 Dec 2022 12:21:57 +0100
+
+python-bleach (5.0.0-1) unstable; urgency=medium
+
+  * Team upload.
+  * d/gbp.conf: Extend with some more defaults
+  * New upstream version 5.0.0
+  * Rebuild patch queue from patch-queue branch
+    Refresh and rename existing packages.
+  * d/{tests/}control: Running wrap-and-sort -ast
+    No modifications, only sorting the content by wrap-and-sort.
+  * d/u/metadata: Adding some basic metadata
+  * d/control: Sort binary packages alphabetical
+  * d/control: Split of B-D into additional B-D-I
+  * d/control: Increase Standards-Version to 4.6.1
+    No further modifications needed.
+  * d/rules: Remove README.rst from packages site
+  * autopkgtest: Rework and extend testing stuff
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Wed, 22 Jun 2022 21:13:23 +0200
+
+python-bleach (4.1.0-2) unstable; urgency=medium
+
+  [ Debian Janitor ]
+  * Remove constraints unnecessary since buster:
+    + Build-Depends: Drop versioned constraint on python3-html5lib,
+      python3-pytest, python3-pytest-runner, python3-six and python3-sphinx.
+    + python3-bleach: Drop versioned constraint on python3-html5lib in Depends.
+    + python3-bleach: Drop versioned constraint on python3-readme-renderer in
+      Breaks.
+
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Wed, 25 May 2022 20:45:47 +0100
+
 python-bleach (4.1.0-1) unstable; urgency=medium
 
   * Team upload.

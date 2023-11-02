@@ -5,45 +5,42 @@
 Sanitizing text fragments
 =========================
 
-:py:func:`bleach.clean` is Bleach's HTML sanitization method.
+Bleach sanitizes text fragments for use in an HTML context. It provides a
+:py:func:`bleach.clean` function and a more configurable
+:py:class:`bleach.sanitizer.Cleaner` class with safe defaults.
 
-Given a fragment of HTML, Bleach will parse it according to the HTML5 parsing
-algorithm and sanitize any disallowed tags or attributes. This algorithm also
-takes care of things like unclosed and (some) misnested tags.
-
-You may pass in a ``string`` or a ``unicode`` object, but Bleach will always
-return ``unicode``.
-
-.. Note::
-
-   :py:func:`bleach.clean` is for sanitizing HTML **fragments** and not entire
-   HTML documents.
-
+Given a text fragment, Bleach will parse it according to the HTML5 parsing
+algorithm and sanitize tags, attributes, and other aspects. This also handles
+unescaped characters and unclosed and misnested tags. The result is text that
+can be used in HTML as is.
 
 .. Warning::
 
    :py:func:`bleach.clean` is for sanitising HTML fragments to use in an HTML
-   context--not for HTML attributes, CSS, JSON, xhtml, SVG, or other contexts.
+   context--not for use in HTML attributes, CSS, JavaScript, JavaScript
+   templates (mustache, handlebars, angular, jsx, etc), JSON, xhtml, SVG, or
+   other contexts.
 
-   For example, this is a safe use of ``clean`` output in an HTML context::
+   For example, this is a safe use of ``clean`` output in an HTML context:
+
+   .. code-block:: html
 
      <p>
        {{ bleach.clean(user_bio) }}
      </p>
 
 
-   This is a **not safe** use of ``clean`` output in an HTML attribute::
+   This is **not a safe** use of ``clean`` output in an HTML attribute:
+
+   .. code-block:: html
 
      <body data-bio="{{ bleach.clean(user_bio) }}">
 
 
-   If you need to use the output of ``bleach.clean()`` in an HTML attribute, you
-   need to pass it through your template library's escape function. For example,
-   Jinja2's ``escape`` or ``django.utils.html.escape`` or something like that.
-
    If you need to use the output of ``bleach.clean()`` in any other context,
    you need to pass it through an appropriate sanitizer/escaper for that
-   context.
+   context. For example, if you wanted to use the output in an HTML attribute
+   value, you would need to pass it through Jinja's or Django's escape function.
 
 
 .. autofunction:: bleach.clean
@@ -64,7 +61,7 @@ For example:
 
    >>> bleach.clean(
    ...     '<b><i>an example</i></b>',
-   ...     tags=['b'],
+   ...     tags={'b'},
    ... )
    '<b>&lt;i&gt;an example&lt;/i&gt;</b>'
 
@@ -84,6 +81,12 @@ value can be a list, a callable or a map of tag name to list or callable.
 
 The default value is also a conservative dict found in
 ``bleach.sanitizer.ALLOWED_ATTRIBUTES``.
+
+
+.. Note::
+
+   If you allow ``style``, you need to also sanitize css. See
+   :ref:`clean-chapter-sanitizing-css` for details.
 
 
 .. autodata:: bleach.sanitizer.ALLOWED_ATTRIBUTES
@@ -107,11 +110,10 @@ For example:
 
    >>> bleach.clean(
    ...     '<p class="foo" style="color: red; font-weight: bold;">blah blah blah</p>',
-   ...     tags=['p'],
-   ...     attributes=['style'],
-   ...     styles=['color'],
+   ...     tags={'p'},
+   ...     attributes=['class'],
    ... )
-   '<p style="color: red;">blah blah blah</p>'
+   '<p class="foo">blah blah blah</p>'
 
 
 As a dict
@@ -136,7 +138,7 @@ and "class" for any tag (including "a" and "img"):
 
    >>> bleach.clean(
    ...    '<img alt="an example" width=500>',
-   ...    tags=['img'],
+   ...    tags={'img'},
    ...    attributes=attrs
    ... )
    '<img alt="an example">'
@@ -162,7 +164,7 @@ For example:
 
    >>> bleach.clean(
    ...    '<a href="http://example.com" title="link">link</a>',
-   ...    tags=['a'],
+   ...    tags={'a'},
    ...    attributes=allow_h,
    ... )
    '<a href="http://example.com">link</a>'
@@ -186,7 +188,7 @@ attributes for specified tags:
 
    >>> bleach.clean(
    ...    '<img src="http://example.com" alt="an example">',
-   ...    tags=['img'],
+   ...    tags={'img'},
    ...    attributes={
    ...        'img': allow_src
    ...    }
@@ -199,41 +201,6 @@ attributes for specified tags:
    In previous versions of Bleach, the callable took an attribute name and a
    attribute value. Now it takes a tag, an attribute name and an attribute
    value.
-
-
-Allowed styles (``styles``)
-===========================
-
-If you allow the ``style`` attribute, you will also need to specify the allowed
-styles users are allowed to set, for example ``color`` and ``background-color``.
-
-The default value is an empty list. In other words, the ``style`` attribute will
-be allowed but no style declaration names will be allowed.
-
-For example, to allow users to set the color and font-weight of text:
-
-.. doctest::
-
-   >>> import bleach
-
-   >>> tags = ['p', 'em', 'strong']
-   >>> attrs = {
-   ...     '*': ['style']
-   ... }
-   >>> styles = ['color', 'font-weight']
-
-   >>> bleach.clean(
-   ...     '<p style="font-weight: heavy;">my html</p>',
-   ...     tags=tags,
-   ...     attributes=attrs,
-   ...     styles=styles
-   ... )
-   '<p style="font-weight: heavy;">my html</p>'
-
-
-Default styles are stored in ``bleach.sanitizer.ALLOWED_STYLES``.
-
-.. autodata:: bleach.sanitizer.ALLOWED_STYLES
 
 
 Allowed protocols (``protocols``)
@@ -250,7 +217,7 @@ For example, this sets allowed protocols to http, https and smb:
 
    >>> bleach.clean(
    ...     '<a href="smb://more_text">allowed protocol</a>',
-   ...     protocols=['http', 'https', 'smb']
+   ...     protocols={'http', 'https', 'smb'}
    ... )
    '<a href="smb://more_text">allowed protocol</a>'
 
@@ -263,7 +230,7 @@ This adds smb to the Bleach-specified set of allowed protocols:
 
    >>> bleach.clean(
    ...     '<a href="smb://more_text">allowed protocol</a>',
-   ...     protocols=bleach.ALLOWED_PROTOCOLS + ['smb']
+   ...     protocols=bleach.ALLOWED_PROTOCOLS | {'smb'}
    ... )
    '<a href="smb://more_text">allowed protocol</a>'
 
@@ -286,7 +253,7 @@ and invalid markup. For example:
    >>> bleach.clean('<span>is not allowed</span>')
    '&lt;span&gt;is not allowed&lt;/span&gt;'
 
-   >>> bleach.clean('<b><span>is not allowed</span></b>', tags=['b'])
+   >>> bleach.clean('<b><span>is not allowed</span></b>', tags={'b'})
    '<b>&lt;span&gt;is not allowed&lt;/span&gt;</b>'
 
 
@@ -300,7 +267,7 @@ If you would rather Bleach stripped this markup entirely, you can pass
    >>> bleach.clean('<span>is not allowed</span>', strip=True)
    'is not allowed'
 
-   >>> bleach.clean('<b><span>is not allowed</span></b>', tags=['b'], strip=True)
+   >>> bleach.clean('<b><span>is not allowed</span></b>', tags={'b'}, strip=True)
    '<b>is not allowed</b>'
 
 
@@ -323,6 +290,62 @@ By default, Bleach will strip out HTML comments. To disable this behavior, set
    'my<!-- commented --> html'
 
 
+.. _clean-chapter-sanitizing-css:
+
+Sanitizing CSS
+==============
+
+Bleach can sanitize CSS in style attribute values. In order to use this feature,
+you have to install additional dependencies::
+
+   pip install 'bleach[css]'
+
+Bleach provides a :py:class:`bleach.css_sanitizer.CSSSanitizer` class that has
+a ``sanitize:css`` method. This takes a style attribute value as text and
+returns a sanitized version of that value.
+
+For example:
+
+.. doctest::
+
+   >>> import bleach
+   >>> from bleach.css_sanitizer import CSSSanitizer
+
+   >>> css_sanitizer = CSSSanitizer(allowed_css_properties=["color", "font-weight"])
+
+   >>> tags = {'p', 'em', 'strong'}
+   >>> attrs = {
+   ...     '*': ['style']
+   ... }
+
+   >>> bleach.clean(
+   ...     '<p style="font-weight: heavy;">my html</p>',
+   ...     tags=tags,
+   ...     attributes=attrs,
+   ...     css_sanitizer=css_sanitizer
+   ... )
+   '<p style="font-weight: heavy;">my html</p>'
+
+
+Defaults are stored in ``bleach.css_sanitizer.ALLOWED_CSS_PROPERTIES`` and
+``bleach.css_sanitizer.ALLOWED_SVG_PROPERTIES``.
+
+.. Note::
+
+   This silently drops ParseError and AtRule tokens in CSS parsing. If you need
+   to sanitize style values that have ``@media`` or need to do something with
+   CSS parse errors, you should implement your own
+   :py:class:`bleach.css_sanitizer.CSSSanitizer`.
+
+.. autodata:: bleach.css_sanitizer.ALLOWED_CSS_PROPERTIES
+
+.. autodata:: bleach.css_sanitizer.ALLOWED_SVG_PROPERTIES
+
+.. autoclass:: bleach.css_sanitizer.CSSSanitizer
+
+.. versionadded:: 5.0
+
+
 Using ``bleach.sanitizer.Cleaner``
 ==================================
 
@@ -340,7 +363,7 @@ html5lib Filters (``filters``)
 
 Bleach sanitizing is implemented as an html5lib filter. The consequence of this
 is that we can pass the streamed content through additional specified filters
-after the :py:class:`bleach.sanitizer.BleachSanitizingFilter` filter has run.
+after the :py:class:`bleach.sanitizer.BleachSanitizerFilter` filter has run.
 
 This lets you add data, drop data and change data as it is being serialized back
 to a unicode.
@@ -367,11 +390,11 @@ Trivial Filter example:
    ...     'img': ['rel', 'src']
    ... }
    ...
-   >>> TAGS = ['img']
+   >>> TAGS = {'img'}
    >>> cleaner = Cleaner(tags=TAGS, attributes=ATTRS, filters=[MooFilter])
    >>> dirty = 'this is cute! <img src="http://example.com/puppy.jpg" rel="nofollow">'
    >>> cleaner.clean(dirty)
-   'this is cute! <img rel="moo" src="moo">'
+   'this is cute! <img src="moo" rel="moo">'
 
 
 .. Warning::
@@ -392,6 +415,3 @@ Using ``bleach.sanitizer.BleachSanitizerFilter``
 use an html5lib filter.
 
 .. autoclass:: bleach.sanitizer.BleachSanitizerFilter
-
-
-.. versionadded:: 2.0

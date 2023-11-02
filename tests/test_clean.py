@@ -4,14 +4,34 @@ import pytest
 
 from bleach import clean
 from bleach.html5lib_shim import Filter
-from bleach.sanitizer import ALLOWED_PROTOCOLS, Cleaner
+from bleach.sanitizer import ALLOWED_PROTOCOLS, Cleaner, NoCssSanitizerWarning
 from bleach._vendor.html5lib.constants import rcdataElements
 
 
-def test_clean_idempotent():
+@pytest.mark.parametrize(
+    "data",
+    [
+        "a < b",
+        "link http://link.com",
+        "text<em>",
+        # Verify idempotentcy with character entity handling
+        "<span>text & </span>",
+        "jim &current joe",
+        "&&nbsp; &nbsp;&",
+        "jim &xx; joe",
+        # Link with querystring items
+        '<a href="http://example.com?foo=bar&bar=foo&amp;biz=bash">',
+    ],
+)
+def test_clean_idempotent(data):
     """Make sure that applying the filter twice doesn't change anything."""
-    dirty = "<span>invalid & </span> < extra http://link.com<em>"
-    assert clean(clean(dirty)) == clean(dirty)
+    assert clean(clean(data)) == clean(data)
+
+
+def test_clean_idempotent_img():
+    tags = {"img"}
+    dirty = '<imr src="http://example.com?foo=bar&bar=foo&amp;biz=bash">'
+    assert clean(clean(dirty, tags=tags), tags=tags) == clean(dirty, tags=tags)
 
 
 def test_only_text_is_cleaned():
@@ -139,41 +159,67 @@ def test_bare_entities_get_escaped_correctly(text, expected):
 @pytest.mark.parametrize(
     "text, expected",
     [
-        # Test character entities
+        ("x<y", "x&lt;y"),
+        ("<y", "&lt;y"),
+        ("x < y", "x &lt; y"),
+        ("<y>", "&lt;y&gt;"),
+        # this is an eof-in-attribute-name parser error
+        ("<some thing", "&lt;some thing"),
+        # this is an eof-in-attribute-value-no-quotes parser error
+        ("<some thing=foo", "&lt;some thing=foo"),
+    ],
+)
+def test_lessthan_escaping(text, expected):
+    # Tests whether < gets escaped correctly in a series of edge cases where
+    # the html5lib tokenizer hits an error because it's not the beginning of a
+    # tag.
+    assert clean(text) == expected
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        # Test character entities in text don't get escaped
         ("&amp;", "&amp;"),
         ("&nbsp;", "&nbsp;"),
         ("&nbsp; test string &nbsp;", "&nbsp; test string &nbsp;"),
         ("&lt;em&gt;strong&lt;/em&gt;", "&lt;em&gt;strong&lt;/em&gt;"),
-        # Test character entity at beginning of string
+        # Test character entity at beginning of string doesn't get escaped
         ("&amp;is cool", "&amp;is cool"),
-        # Test it at the end of the string
+        # Test character entity at end of the string doesn't get escaped
         ("cool &amp;", "cool &amp;"),
-        # Test bare ampersands and entities at beginning
+        # Test bare ampersands before an entity at the beginning of the string
+        # gets escaped
         ("&&amp; is cool", "&amp;&amp; is cool"),
-        # Test entities and bare ampersand at end
+        # Test ampersand after an entity at the end of the string gets escaped
         ("&amp; is cool &amp;&", "&amp; is cool &amp;&amp;"),
-        # Test missing semi-colon means we don't treat it like an entity
+        # Test missing semi-colons mean we don't treat the thing as an entity--Bleach
+        # only recognizes character entities that start with & and end with ;
         ("this &amp that", "this &amp;amp that"),
-        # Test a thing that looks like a character entity, but isn't because it's
-        # missing a ; (&current)
         (
             "http://example.com?active=true&current=true",
             "http://example.com?active=true&amp;current=true",
         ),
-        # Test character entities in attribute values are left alone
+        # Test character entities in attribute values are not escaped
         ('<a href="?art&amp;copy">foo</a>', '<a href="?art&amp;copy">foo</a>'),
         ('<a href="?this=&gt;that">foo</a>', '<a href="?this=&gt;that">foo</a>'),
-        # Ambiguous ampersands get escaped in attributes
+        # Things in attributes that aren't character entities get escaped
         (
             '<a href="http://example.com/&xx;">foo</a>',
             '<a href="http://example.com/&amp;xx;">foo</a>',
         ),
         (
+            '<a href="http://example.com?&adp;">foo</a>',
+            '<a href="http://example.com?&amp;adp;">foo</a>',
+        ),
+        (
             '<a href="http://example.com?active=true&current=true">foo</a>',
             '<a href="http://example.com?active=true&amp;current=true">foo</a>',
         ),
-        # Ambiguous ampersands in text are not escaped
-        ("&xx;", "&xx;"),
+        # Things in text that aren't character entities get escaped
+        ("&xx;", "&amp;xx;"),
+        ("&adp;", "&amp;adp;"),
+        ("&currdupe;", "&amp;currdupe;"),
         # Test numeric entities
         ("&#39;", "&#39;"),
         ("&#34;", "&#34;"),
@@ -212,21 +258,21 @@ def test_character_entities_handling(text, expected):
         # a tag is disallowed, so it's stripped
         (
             '<p><a href="http://example.com/">link text</a></p>',
-            {"tags": ["p"]},
+            {"tags": {"p"}},
             "<p>link text</p>",
         ),
         # Test nested disallowed tag
         (
             "<p><span>multiply <span>nested <span>text</span></span></span></p>",
-            {"tags": ["p"]},
+            {"tags": {"p"}},
             "<p>multiply nested text</p>",
         ),
         # (#271)
-        ("<ul><li><script></li></ul>", {"tags": ["ul", "li"]}, "<ul><li></li></ul>"),
+        ("<ul><li><script></li></ul>", {"tags": {"ul", "li"}}, "<ul><li></li></ul>"),
         # Test disallowed tag that's deep in the tree
         (
             '<p><a href="http://example.com/"><img src="http://example.com/"></a></p>',
-            {"tags": ["a", "p"]},
+            {"tags": {"a", "p"}},
             '<p><a href="http://example.com/"></a></p>',
         ),
         # Test isindex -- the parser expands this to a prompt (#279)
@@ -246,11 +292,8 @@ def test_character_entities_handling(text, expected):
 )
 def test_stripping_tags(data, kwargs, expected):
     assert clean(data, strip=True, **kwargs) == expected
-    assert clean("  " + data + "  ", strip=True, **kwargs) == "  " + expected + "  "
-    assert (
-        clean("abc " + data + " def", strip=True, **kwargs)
-        == "abc " + expected + " def"
-    )
+    assert clean(f"  {data}  ", strip=True, **kwargs) == f"  {expected}  "
+    assert clean(f"abc {data} def", strip=True, **kwargs) == f"abc {expected} def"
 
 
 @pytest.mark.parametrize(
@@ -282,8 +325,8 @@ def test_stripping_tags(data, kwargs, expected):
 )
 def test_escaping_tags(data, expected):
     assert clean(data, strip=False) == expected
-    assert clean("  " + data + "  ", strip=False) == "  " + expected + "  "
-    assert clean("abc " + data + " def", strip=False) == "abc " + expected + " def"
+    assert clean(f"  {data}  ", strip=False) == f"  {expected}  "
+    assert clean(f"abc {data} def", strip=False) == f"abc {expected} def"
 
 
 @pytest.mark.parametrize(
@@ -298,28 +341,12 @@ def test_stripping_tags_is_safe(data, expected):
     assert clean(data, strip=True) == expected
 
 
-def test_allowed_styles():
-    """Test allowed styles"""
-    ATTRS = ["style"]
-    STYLE = ["color"]
-
-    assert clean('<b style="top:0"></b>', attributes=ATTRS) == '<b style=""></b>'
-
-    text = '<b style="color: blue;"></b>'
-    assert clean(text, attributes=ATTRS, styles=STYLE) == text
-
-    text = '<b style="top: 0; color: blue;"></b>'
-    assert clean(text, attributes=ATTRS, styles=STYLE) == '<b style="color: blue;"></b>'
-
-
 def test_href_with_wrong_tag():
     assert clean('<em href="fail">no link</em>') == "<em>no link</em>"
 
 
 def test_disallowed_attr():
-    IMG = [
-        "img",
-    ]
+    IMG = {"img"}
     IMG_ATTR = ["src"]
 
     assert clean('<a onclick="evil" href="test">test</a>') == '<a href="test">test</a>'
@@ -348,9 +375,7 @@ def test_unquoted_event_handler_attr_value():
 
 
 def test_invalid_filter_attr():
-    IMG = [
-        "img",
-    ]
+    IMG = {"img"}
     IMG_ATTR = {
         "img": lambda tag, name, val: name == "src" and val == "http://example.com/"
     }
@@ -375,7 +400,7 @@ def test_invalid_filter_attr():
 
 def test_poster_attribute():
     """Poster attributes should not allow javascript."""
-    tags = ["video"]
+    tags = {"video"}
     attrs = {"video": ["poster"]}
 
     test = '<video poster="javascript:alert(1)"></video>'
@@ -388,7 +413,7 @@ def test_poster_attribute():
 def test_attributes_callable():
     """Verify attributes can take a callable"""
     ATTRS = lambda tag, name, val: name == "title"
-    TAGS = ["a"]
+    TAGS = {"a"}
 
     text = '<a href="/foo" title="blah">example</a>'
     assert clean(text, tags=TAGS, attributes=ATTRS) == '<a title="blah">example</a>'
@@ -400,7 +425,7 @@ def test_attributes_wildcard():
         "*": ["id"],
         "img": ["src"],
     }
-    TAGS = ["img", "em"]
+    TAGS = {"img", "em"}
 
     text = (
         'both <em id="foo" style="color: black">can</em> have <img id="bar" src="foo"/>'
@@ -414,7 +439,7 @@ def test_attributes_wildcard():
 def test_attributes_wildcard_callable():
     """Verify attributes[*] callable works"""
     ATTRS = {"*": lambda tag, name, val: name == "title"}
-    TAGS = ["a"]
+    TAGS = {"a"}
 
     assert (
         clean('<a href="/foo" title="blah">example</a>', tags=TAGS, attributes=ATTRS)
@@ -431,7 +456,7 @@ def test_attributes_tag_callable():
     ATTRS = {
         "img": img_test,
     }
-    TAGS = ["img"]
+    TAGS = {"img"}
 
     text = 'foo <img src="http://example.com" alt="blah"> baz'
     assert clean(text, tags=TAGS, attributes=ATTRS) == "foo <img> baz"
@@ -445,7 +470,7 @@ def test_attributes_tag_callable():
 def test_attributes_tag_list():
     """Verify attributes[tag] list works"""
     ATTRS = {"a": ["title"]}
-    TAGS = ["a"]
+    TAGS = {"a"}
 
     assert (
         clean('<a href="/foo" title="blah">example</a>', tags=TAGS, attributes=ATTRS)
@@ -456,7 +481,7 @@ def test_attributes_tag_list():
 def test_attributes_list():
     """Verify attributes list works"""
     ATTRS = ["title"]
-    TAGS = ["a"]
+    TAGS = {"a"}
 
     text = '<a href="/foo" title="blah">example</a>'
     assert clean(text, tags=TAGS, attributes=ATTRS) == '<a title="blah">example</a>'
@@ -493,78 +518,83 @@ def test_attributes_list():
         # Specified protocols are allowed
         (
             '<a href="myprotocol://more_text">allowed href</a>',
-            {"protocols": ["myprotocol"]},
+            {"protocols": {"myprotocol"}},
             '<a href="myprotocol://more_text">allowed href</a>',
         ),
         # Unspecified protocols are not allowed
         (
             '<a href="http://example.com">invalid href</a>',
-            {"protocols": ["myprotocol"]},
+            {"protocols": {"myprotocol"}},
             "<a>invalid href</a>",
         ),
         # Anchors are ok
         (
             '<a href="#section-1">foo</a>',
-            {"protocols": []},
+            {"protocols": set()},
             '<a href="#section-1">foo</a>',
         ),
         # Anchor that looks like a domain is ok
         (
             '<a href="#example.com">foo</a>',
-            {"protocols": []},
+            {"protocols": set()},
             '<a href="#example.com">foo</a>',
         ),
-        # Allow implicit http if allowed
+        # Allow implicit http/https if allowed
         (
             '<a href="/path">valid</a>',
-            {"protocols": ["http"]},
+            {"protocols": {"http"}},
+            '<a href="/path">valid</a>',
+        ),
+        (
+            '<a href="/path">valid</a>',
+            {"protocols": {"https"}},
             '<a href="/path">valid</a>',
         ),
         (
             '<a href="example.com">valid</a>',
-            {"protocols": ["http"]},
+            {"protocols": {"http"}},
             '<a href="example.com">valid</a>',
         ),
         (
             '<a href="example.com:8000">valid</a>',
-            {"protocols": ["http"]},
+            {"protocols": {"http"}},
             '<a href="example.com:8000">valid</a>',
         ),
         (
             '<a href="localhost">valid</a>',
-            {"protocols": ["http"]},
+            {"protocols": {"http"}},
             '<a href="localhost">valid</a>',
         ),
         (
             '<a href="localhost:8000">valid</a>',
-            {"protocols": ["http"]},
+            {"protocols": {"http"}},
             '<a href="localhost:8000">valid</a>',
         ),
         (
             '<a href="192.168.100.100">valid</a>',
-            {"protocols": ["http"]},
+            {"protocols": {"http"}},
             '<a href="192.168.100.100">valid</a>',
         ),
         (
             '<a href="192.168.100.100:8000">valid</a>',
-            {"protocols": ["http"]},
+            {"protocols": {"http"}},
             '<a href="192.168.100.100:8000">valid</a>',
         ),
         pytest.param(
             *(
                 '<a href="192.168.100.100:8000/foo#bar">valid</a>',
-                {"protocols": ["http"]},
+                {"protocols": {"http"}},
                 '<a href="192.168.100.100:8000/foo#bar">valid</a>',
             ),
             marks=pytest.mark.xfail,
         ),
-        # Disallow implicit http if disallowed
-        ('<a href="example.com">foo</a>', {"protocols": []}, "<a>foo</a>"),
-        ('<a href="example.com:8000">foo</a>', {"protocols": []}, "<a>foo</a>"),
-        ('<a href="localhost">foo</a>', {"protocols": []}, "<a>foo</a>"),
-        ('<a href="localhost:8000">foo</a>', {"protocols": []}, "<a>foo</a>"),
-        ('<a href="192.168.100.100">foo</a>', {"protocols": []}, "<a>foo</a>"),
-        ('<a href="192.168.100.100:8000">foo</a>', {"protocols": []}, "<a>foo</a>"),
+        # Disallow implicit http/https if disallowed
+        ('<a href="example.com">foo</a>', {"protocols": set()}, "<a>foo</a>"),
+        ('<a href="example.com:8000">foo</a>', {"protocols": set()}, "<a>foo</a>"),
+        ('<a href="localhost">foo</a>', {"protocols": set()}, "<a>foo</a>"),
+        ('<a href="localhost:8000">foo</a>', {"protocols": set()}, "<a>foo</a>"),
+        ('<a href="192.168.100.100">foo</a>', {"protocols": set()}, "<a>foo</a>"),
+        ('<a href="192.168.100.100:8000">foo</a>', {"protocols": set()}, "<a>foo</a>"),
         # Disallowed protocols with sneaky character entities
         ('<a href="javas&#x09;cript:alert(1)">alert</a>', {}, "<a>alert</a>"),
         ('<a href="&#14;javascript:alert(1)">alert</a>', {}, "<a>alert</a>"),
@@ -583,7 +613,7 @@ def test_uri_value_allowed_protocols(data, kwargs, expected):
 def test_svg_attr_val_allows_ref():
     """Unescape values in svg attrs that allow url references"""
     # Local IRI, so keep it
-    TAGS = ["svg", "rect"]
+    TAGS = {"svg", "rect"}
     ATTRS = {
         "rect": ["fill"],
     }
@@ -595,7 +625,7 @@ def test_svg_attr_val_allows_ref():
     )
 
     # Non-local IRI, so drop it
-    TAGS = ["svg", "rect"]
+    TAGS = {"svg", "rect"}
     ATTRS = {
         "rect": ["fill"],
     }
@@ -608,7 +638,7 @@ def test_svg_attr_val_allows_ref():
     [
         (
             '<svg><pattern id="patt1" href="#patt2"></pattern></svg>',
-            '<svg><pattern href="#patt2" id="patt1"></pattern></svg>',
+            '<svg><pattern id="patt1" href="#patt2"></pattern></svg>',
         ),
         (
             '<svg><pattern id="patt1" xlink:href="#patt2"></pattern></svg>',
@@ -619,7 +649,7 @@ def test_svg_attr_val_allows_ref():
 )
 def test_svg_allow_local_href(text, expected):
     """Keep local hrefs for svg elements"""
-    TAGS = ["svg", "pattern"]
+    TAGS = {"svg", "pattern"}
     ATTRS = {
         "pattern": ["id", "href"],
     }
@@ -641,7 +671,7 @@ def test_svg_allow_local_href(text, expected):
 )
 def test_svg_allow_local_href_nonlocal(text, expected):
     """Drop non-local hrefs for svg elements"""
-    TAGS = ["svg", "pattern"]
+    TAGS = {"svg", "pattern"}
     ATTRS = {
         "pattern": ["id", "href"],
     }
@@ -711,7 +741,7 @@ def test_nonexistent_namespace():
     ],
 )
 def test_self_closing_tags_self_close(tag):
-    assert clean("<%s>" % tag, tags=[tag]) == "<%s>" % tag
+    assert clean(f"<{tag}>", tags={tag}) == f"<{tag}>"
 
 
 # tags that get content passed through (i.e. parsed with parseRCDataRawtext)
@@ -732,16 +762,15 @@ _raw_tags = [
     [
         (
             raw_tag,
-            "<noscript><%s></noscript><img src=x onerror=alert(1) />" % raw_tag,
-            "<noscript>&lt;%s&gt;</noscript>&lt;img src=x onerror=alert(1) /&gt;"
-            % raw_tag,
+            f"<noscript><{raw_tag}></noscript><img src=x onerror=alert(1) />",
+            f"<noscript>&lt;{raw_tag}&gt;</noscript>&lt;img src=x onerror=alert(1) /&gt;",
         )
         for raw_tag in _raw_tags
     ],
 )
 def test_noscript_rawtag_(raw_tag, data, expected):
     # refs: bug 1615315 / GHSA-q65m-pv3f-wr5r
-    assert clean(data, tags=["noscript", raw_tag]) == expected
+    assert clean(data, tags={"noscript", raw_tag}) == expected
 
 
 @pytest.mark.parametrize(
@@ -750,10 +779,15 @@ def test_noscript_rawtag_(raw_tag, data, expected):
         (
             namespace_tag,
             rc_data_element_tag,
-            "<%s><%s><img src=x onerror=alert(1)>"
-            % (namespace_tag, rc_data_element_tag),
-            "<%s><%s>&lt;img src=x onerror=alert(1)&gt;</%s></%s>"
-            % (namespace_tag, rc_data_element_tag, rc_data_element_tag, namespace_tag),
+            (
+                f"<{namespace_tag}><{rc_data_element_tag}>"
+                + "<img src=x onerror=alert(1)>"
+            ),
+            (
+                f"<{namespace_tag}><{rc_data_element_tag}>"
+                + "&lt;img src=x onerror=alert(1)&gt;"
+                + f"</{rc_data_element_tag}></{namespace_tag}>"
+            ),
         )
         for namespace_tag in ["math", "svg"]
         # https://dev.w3.org/html5/html-author/#rcdata-elements
@@ -769,7 +803,7 @@ def test_namespace_rc_data_element_strip_false(
     #
     # browsers will pull the img out of the namespace and rc data tag resulting in XSS
     assert (
-        clean(data, tags=[namespace_tag, rc_data_element_tag], strip=False) == expected
+        clean(data, tags={namespace_tag, rc_data_element_tag}, strip=False) == expected
     )
 
 
@@ -1053,9 +1087,45 @@ def test_html_comments_escaped(namespace_tag, end_tag, eject_tag, data, expected
     #
     # the ejected elements can trigger XSS
     assert (
-        clean(data, tags=[namespace_tag, end_tag, eject_tag], strip_comments=False)
+        clean(data, tags={namespace_tag, end_tag, eject_tag}, strip_comments=False)
         == expected
     )
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        (
+            "<p>Te<b>st</b>!</p><p>Hello</p>",
+            "Test!\nHello",
+        ),
+        (
+            # with an internal space and escaped character
+            "<p>This is our <b>description!</b> &amp;</p><p>nice!</p>",
+            "This is our description! &amp;\nnice!",
+        ),
+        (
+            # note: double-wrap causes an initial newline--this can't really be
+            # handled under the current design
+            "<div><p>This is our <b>description!</b> &amp;</p></div><p>nice!</p>",
+            "\nThis is our description! &amp;\nnice!",
+        ),
+        (
+            # newlines are used to keep lists and other elements readable
+            (
+                "<div><p>This is our <b>description!</b> &amp;</p><p>1</p>"
+                + "<ul><li>a</li><li>b</li><li>c</li></ul></div><p>nice!</p>"
+            ),
+            "\nThis is our description! &amp;\n1\n\na\nb\nc\nnice!",
+        ),
+    ],
+)
+def test_strip_respects_block_level_elements(text, expected):
+    """
+    Insert a newline between block level elements
+    https://github.com/mozilla/bleach/issues/369
+    """
+    assert clean(text, tags=set(), strip=True) == expected
 
 
 def get_ids_and_tests():
@@ -1099,9 +1169,30 @@ def test_regressions(test_case):
     assert clean(test_data) == expected
 
 
+def test_preserves_attributes_order():
+    html = """<a target="_blank" href="https://example.com">Link</a>"""
+    cleaned_html = clean(html, tags={"a"}, attributes={"a": ["href", "target"]})
+
+    assert cleaned_html == html
+
+
+@pytest.mark.parametrize(
+    "attr",
+    (
+        ["style"],
+        {"*": ["style"]},
+    ),
+)
+def test_css_sanitizer_warning(attr):
+    # If you have "style" in attributes, but don't set a css_sanitizer, it
+    # should raise a warning.
+    with pytest.warns(NoCssSanitizerWarning):
+        clean("foo", attributes=attr)
+
+
 class TestCleaner:
     def test_basics(self):
-        TAGS = ["span", "br"]
+        TAGS = {"span", "br"}
         ATTRS = {"span": ["style"]}
 
         cleaner = Cleaner(tags=TAGS, attributes=ATTRS)
@@ -1123,9 +1214,9 @@ class TestCleaner:
                     yield token
 
         ATTRS = {"img": ["rel", "src"]}
-        TAGS = ["img"]
+        TAGS = {"img"}
 
         cleaner = Cleaner(tags=TAGS, attributes=ATTRS, filters=[MooFilter])
 
         dirty = 'this is cute! <img src="http://example.com/puppy.jpg" rel="nofollow">'
-        assert cleaner.clean(dirty) == 'this is cute! <img rel="moo" src="moo">'
+        assert cleaner.clean(dirty) == 'this is cute! <img src="moo" rel="moo">'

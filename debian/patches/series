@@ -1,2 +1,2 @@
-0001-remove-privacy-breach.patch
-0002-no_vendored_html5lib.patch
+Privacy-Don-t-link-to-external-resources.patch
+Don-t-vendor-the-included-html5lib.patch

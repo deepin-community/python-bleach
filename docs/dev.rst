@@ -11,18 +11,21 @@ To install Bleach to make changes to it:
 
        $ git clone git://github.com/mozilla/bleach.git
 
-2. Create a virtual environment using whatever method you want.
+2. Create and activate a virtual environment.
 
-3. Install Bleach into the virtual environment such that you can see
-   changes::
+3. Install Bleach and developer requirements into the virtual environment::
 
-       $ pip install -e .
+       $ pip install -r requirements-dev.txt
+
+
+Code of conduct
+===============
+
+This project has a `code of conduct
+<https://github.com/mozilla/bleach/blob/main/CODE_OF_CONDUCT.md>`_.
 
 
 .. include:: ../CONTRIBUTING.rst
-
-
-.. include:: ../CODE_OF_CONDUCT.rst
 
 
 Docs
@@ -39,10 +42,10 @@ Run::
 
     $ tox
 
-That'll run Bleach tests in all the supported Python environments. Note
-that you need the necessary Python binaries for them all to be tested.
+That'll run Bleach tests in all the supported Python environments. Note that
+you need the necessary Python binaries for them all to be tested.
 
-Tests are run as github actions for test and pull request events.
+Tests are run as GitHub actions for test and pull request events.
 
 
 Release process
@@ -50,8 +53,7 @@ Release process
 
 1. Checkout main tip.
 
-2. Check to make sure ``setup.py`` and ``requirements-dev.txt`` are
-   correct and match requirements-wise.
+2. Check to make sure ``setup.py`` is correct and match requirements-wise.
 
 3. Update version numbers in ``bleach/__init__.py``.
 
@@ -60,11 +62,12 @@ Release process
       unvendored or updated.
    2. Set ``__releasedate__`` to something like ``20120731``.
 
-4. Update ``CONTRIBUTORS``, ``CHANGES`` and ``MANIFEST.in``.
+4. Update ``CONTRIBUTORS``, ``CHANGES``, ``MANIFEST.in`` and
+   ``SECURITY.md`` as necessary.
 
 5. Verify correctness.
 
-   1. Run tests with tox::
+   1. Run linting, tests, and everything else with tox::
 
          $ tox
 
@@ -73,15 +76,16 @@ Release process
          $ cd docs
          $ make html
 
-   3. Run the doctests (in Python 3)::
+   3. Run the doctests::
 
          $ cd docs/
          $ make doctest
 
-   4. Verify the local vendored files (the second invocation should **not** exit with ``/tmp/vendor-test exists. Please remove.`` and the exit code should be zero)::
+   4. Verify the local vendored files (the second invocation should **not**
+      exit with ``/tmp/vendor-test exists. Please remove.`` and the exit
+      code should be zero)::
 
-	$ ./scripts/run_tests.sh vendorverify
-	$ ./scripts/run_tests.sh vendorverify
+         $ make vendorverify
 
    5. Run any additional tests to verify everything else works
 
@@ -91,27 +95,27 @@ Release process
 
 8. After CI passes, create a signed tag for the release::
 
-     $ git tag -s v0.4.0
+      $ git tag -s v0.4.0
 
    Copy the details from ``CHANGES`` into the tag comment.
 
 9. Generate distribution files::
 
-     $ python setup.py sdist bdist_wheel
+      $ python -m build
 
 10. Sanity check the release contents and sizes::
 
-     $ ls -lh dist/* # file sizes should be similar
-     $ tar tvzf dist/bleach-${VERSION}.tar.gz
-     $ unzip -v dist/bleach-${VERSION}-py2.py3-none-any.whl
+       $ ls -lh dist/* # file sizes should be similar
+       $ tar tvzf dist/bleach-${VERSION}.tar.gz
+       $ unzip -v dist/bleach-${VERSION}-py2.py3-none-any.whl
 
-11. Upload them to PyPI::
+11. Using a PyPI API token, upload dist files to PyPI::
 
-      $ twine upload dist/*
+       $ twine upload -r [REPO] dist/*
 
 12. Push the new tag::
 
-      $ git push --tags official main
+       $ git push --tags [REMOTE] main
 
     That will push the release to PyPI.
 

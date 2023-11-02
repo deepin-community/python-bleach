@@ -20,14 +20,13 @@ PORT = 8080
 
 
 class BleachCleanHandler(http.server.SimpleHTTPRequestHandler):
-
     # Prevent 'cannot bind to address' errors on restart
     allow_reuse_address = True
 
     def do_POST(self):
         content_len = int(self.headers.get("content-length", 0))
         body = self.rfile.read(content_len)
-        print("read %s bytes: %s" % (content_len, body))
+        print("read {} bytes: {}".format(content_len, body))
 
         body = body.decode("utf-8")
         print("input: %r" % body)
