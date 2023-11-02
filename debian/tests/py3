@@ -1,9 +1,0 @@
-#! /bin/sh
-
-rm -rf bleach
-python3 -c "import bleach; print(bleach)"
-
-set -e
-for py in $(py3versions -s); do
-  $py -m pytest tests
-done

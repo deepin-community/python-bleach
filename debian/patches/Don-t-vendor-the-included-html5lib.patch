@@ -1,20 +1,22 @@
 From: Debian Python Modules Team
  <python-modules-team@lists.alioth.debian.org>
 Date: Tue, 15 Jan 2019 00:39:20 -0500
-Subject: no_vendored_html5lib
+Subject: Don't vendor the included html5lib
 
-===================================================================
+Using the vendored html5lib library isn't something we want to do, this
+library is packaged in Debian.
+
+Forwared: not-needed
 ---
  bleach/html5lib_shim.py | 24 ++++++++++++------------
- bleach/sanitizer.py     |  2 +-
  tests/test_clean.py     |  2 +-
- 3 files changed, 14 insertions(+), 14 deletions(-)
+ 2 files changed, 13 insertions(+), 13 deletions(-)
 
 diff --git a/bleach/html5lib_shim.py b/bleach/html5lib_shim.py
-index 3c9c330..577eb18 100644
+index ca1cc8c..c012ccc 100644
 --- a/bleach/html5lib_shim.py
 +++ b/bleach/html5lib_shim.py
-@@ -14,44 +14,44 @@ warnings.filterwarnings(
+@@ -14,27 +14,27 @@ warnings.filterwarnings(
      "ignore",
      message="html5lib's sanitizer is deprecated",
      category=DeprecationWarning,
@@ -47,6 +49,11 @@ index 3c9c330..577eb18 100644
 -from bleach._vendor.html5lib.filters.sanitizer import (
 +from html5lib.filters.sanitizer import (
      allowed_protocols,
+     allowed_css_properties,
+     allowed_svg_properties,
+@@ -42,21 +42,21 @@ from bleach._vendor.html5lib.filters.sanitizer import (
+     svg_attr_val_allows_ref,
+     svg_allow_local_href,
  )  # noqa: E402 module level import not at top of file
 -from bleach._vendor.html5lib.filters.sanitizer import (
 +from html5lib.filters.sanitizer import (
@@ -71,29 +78,16 @@ index 3c9c330..577eb18 100644
      Trie,
  )  # noqa: E402 module level import not at top of file
  
-diff --git a/bleach/sanitizer.py b/bleach/sanitizer.py
-index 89aff1f..94b7b3b 100644
---- a/bleach/sanitizer.py
-+++ b/bleach/sanitizer.py
-@@ -278,7 +278,7 @@ class BleachSanitizerFilter(html5lib_shim.SanitizerFilter):
-             "ignore",
-             message="html5lib's sanitizer is deprecated",
-             category=DeprecationWarning,
--            module="bleach._vendor.html5lib",
-+            module="html5lib",
-         )
-         return super(BleachSanitizerFilter, self).__init__(source, **kwargs)
- 
 diff --git a/tests/test_clean.py b/tests/test_clean.py
-index 8f816f9..cbf8273 100644
+index dc129d0..7ac1af5 100644
 --- a/tests/test_clean.py
 +++ b/tests/test_clean.py
 @@ -5,7 +5,7 @@ import pytest
  from bleach import clean
  from bleach.html5lib_shim import Filter
- from bleach.sanitizer import ALLOWED_PROTOCOLS, Cleaner
+ from bleach.sanitizer import ALLOWED_PROTOCOLS, Cleaner, NoCssSanitizerWarning
 -from bleach._vendor.html5lib.constants import rcdataElements
 +from html5lib.constants import rcdataElements
  
  
- def test_clean_idempotent():
+ @pytest.mark.parametrize(

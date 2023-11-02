@@ -1,6 +1,200 @@
 Bleach changes
 ==============
 
+Version 6.1.0 (October 6th, 2023)
+---------------------------------
+
+**Backwards incompatible changes**
+
+* Dropped support for Python 3.7. (#709)
+
+**Security fixes**
+
+None
+
+**Bug fixes**
+
+* Add support for Python 3.12. (#710)
+* Fix linkify with arrays in querystring (#436)
+* Handle more cases with < followed by character data (#705)
+* Fix entities inside a tags in linkification (#704)
+* Update cap for tinycss2 to <1.3 (#702)
+* Updated Sphinx requirement
+* Add dependabot for github actions and update github actions
+
+
+Version 6.0.0 (January 23rd, 2023)
+----------------------------------
+
+**Backwards incompatible changes**
+
+* ``bleach.clean``, ``bleach.sanitizer.Cleaner``,
+  ``bleach.html5lib_shim.BleachHTMLParser``: the ``tags`` and ``protocols``
+  arguments were changed from lists to sets.
+
+  Old pre-6.0.0:
+
+  .. code-block:: python
+
+     bleach.clean(
+         "some text",
+         tags=["a", "p", "img"],
+         #    ^               ^ list
+         protocols=["http", "https"],
+         #         ^               ^ list
+     )
+
+
+  New 6.0.0 and later:
+
+  .. code-block:: python
+
+     bleach.clean(
+         "some text",
+         tags={"a", "p", "img"},
+         #    ^               ^ set
+         protocols={"http", "https"},
+         #         ^               ^ set
+     )
+
+* ``bleach.linkify``, ``bleach.linkifier.Linker``: the ``skip_tags`` and
+  ``recognized_tags`` arguments were changed from lists to sets.
+
+  Old pre-6.0.0:
+
+  .. code-block:: python
+
+     bleach.linkify(
+         "some text",
+         skip_tags=["pre"],
+         #         ^     ^ list
+     )
+
+     linker = Linker(
+         skip_tags=["pre"],
+         #         ^     ^ list
+         recognized_tags=html5lib_shim.HTML_TAGS + ["custom-element"],
+         #                                       ^ ^                ^ list
+         #                                       |
+         #                                       | list concatenation
+     )
+
+  New 6.0.0 and later:
+
+  .. code-block:: python
+
+     bleach.linkify(
+         "some text",
+         skip_tags={"pre"},
+         #         ^     ^ set
+     )
+
+     linker = Linker(
+         skip_tags={"pre"},
+         #         ^     ^ set
+         recognized_tags=html5lib_shim.HTML_TAGS | {"custom-element"},
+         #                                       ^ ^                ^ set
+         #                                       |
+         #                                       | union operator
+     )
+
+* ``bleach.sanitizer.BleachSanitizerFilter``: ``strip_allowed_elements`` is now
+  ``strip_allowed_tags``. We now use "tags" everywhere rather than a mishmash
+  of "tags" in some places and "elements" in others.
+
+
+**Security fixes**
+
+None
+
+
+**Bug fixes**
+
+* Add support for Python 3.11. (#675)
+
+* Fix API weirness in ``BleachSanitizerFilter``. (#649)
+
+  We're using "tags" instead of "elements" everywhere--no more weird
+  overloading of "elements" anymore.
+
+  Also, it no longer calls the superclass constructor.
+
+* Add warning when ``css_sanitizer`` isn't set, but the ``style``
+  attribute is allowed. (#676)
+
+* Fix linkify handling of character entities. (#501)
+
+* Rework dev dependencies to use ``requirements-dev.txt`` and
+  ``requirements-flake8.txt`` instead of extras.
+
+* Fix project infrastructure to be tox-based so it's easier to have CI
+  run the same things we're running in development and with flake8
+  in an isolated environment.
+
+* Update action versions in CI.
+
+* Switch to f-strings where possible. Make tests parametrized to be
+  easier to read/maintain.
+
+
+Version 5.0.1 (June 27th, 2022)
+-------------------------------
+
+**Security fixes**
+
+None
+
+
+**Bug fixes**
+
+* Add missing comma to tinycss2 require. Thank you, @shadchin!
+
+* Add url parse tests based on wpt url tests. (#688)
+
+* Support scheme-less urls if "https" is in allow list. (#662)
+
+* Handle escaping ``<`` in edge cases where it doesn't start a tag. (#544)
+
+* Fix reference warnings in docs. (#660)
+
+* Correctly urlencode email address parts. Thank you, @larseggert! (#659)
+
+
+Version 5.0.0 (April 7th, 2022)
+-------------------------------
+
+**Backwards incompatible changes**
+
+* ``clean`` and ``linkify`` now preserve the order of HTML attributes. Thank
+  you, @askoretskly! (#566)
+
+* Drop support for Python 3.6. Thank you, @hugovk! (#629)
+
+* CSS sanitization in style tags is completely different now. If you're using
+  Bleach ``clean`` to sanitize css in style tags, you'll need to update your
+  code and you'll need to install the ``css`` extras::
+
+      pip install 'bleach[css]'
+
+  See `the documentation on sanitizing CSS for how to do it
+  <https://bleach.readthedocs.io/en/latest/clean.html#sanitizing-css>`_. (#633)
+
+**Security fixes**
+
+None
+
+**Bug fixes**
+
+* Rework dev dependencies. We no longer have
+  ``requirements-dev.in``/``requirements-dev.txt``. Instead, we're using
+  ``dev`` extras.
+
+  See `development docs <https://bleach.readthedocs.io/en/latest/dev.html>`_
+  for more details. (#620)
+
+* Add newline when dropping block-level tags. Thank you, @jvanasco! (#369)
+
+
 Version 4.1.0 (August 25th, 2021)
 ---------------------------------
 
@@ -8,17 +202,22 @@ Version 4.1.0 (August 25th, 2021)
 
 * Python 3.9 support
 
+**Security fixes**
+
+None
+
 **Bug fixes**
 
 * Update sanitizer clean to use vendored 3.6.14 stdlib urllib.parse to
-  fix test failures on Python 3.9 #536
+  fix test failures on Python 3.9. (#536)
+
 
 Version 4.0.0 (August 3rd, 2021)
 --------------------------------
 
 **Backwards incompatible changes**
 
-* Drop support for unsupported Python versions <3.6 #520
+* Drop support for unsupported Python versions <3.6. (#520)
 
 **Security fixes**
 
@@ -27,6 +226,7 @@ None
 **Features**
 
 * fix attribute name in the linkify docs (thanks @CheesyFeet!)
+
 
 Version 3.3.1 (July 14th, 2021)
 -------------------------------
@@ -45,8 +245,9 @@ None
 
 **Bug fixes**
 
-* remove extra vendored django present in the v3.3.0 whl #595
+* remove extra vendored django present in the v3.3.0 whl (#595)
 * duplicate h1 header doc fix (thanks Nguyễn Gia Phong / @McSinyx!)
+
 
 Version 3.3.0 (February 1st, 2021)
 ----------------------------------
@@ -67,6 +268,7 @@ None
 
 None
 
+
 Version 3.2.3 (January 26th, 2021)
 ----------------------------------
 
@@ -81,6 +283,7 @@ None
 **Bug fixes**
 
 * fix clean and linkify raising ValueErrors for certain inputs. Thank you @Google-Autofuzz.
+
 
 Version 3.2.2 (January 20th, 2021)
 ----------------------------------
@@ -97,6 +300,7 @@ None
 
 * fix linkify raising an IndexError on certain inputs. Thank you @Google-Autofuzz.
 
+
 Version 3.2.1 (September 18th, 2020)
 ------------------------------------
 
@@ -111,7 +315,8 @@ None
 **Bug fixes**
 
 * change linkifier to add rel="nofollow" as documented. Thank you @mitar.
-* suppress html5lib sanitizer DeprecationWarnings #557
+* suppress html5lib sanitizer DeprecationWarnings (#557)
+
 
 Version 3.2.0 (September 16th, 2020)
 ------------------------------------
@@ -129,6 +334,7 @@ None
 * ``html5lib`` dependency to version 1.1.0. Thank you Sam Sneddon.
 * update tests_website terminology. Thank you Thomas Grainger.
 
+
 Version 3.1.5 (April 29th, 2020)
 --------------------------------
 
@@ -143,6 +349,7 @@ None
 **Bug fixes**
 
 * replace missing ``setuptools`` dependency with ``packaging``. Thank you Benjamin Peterson.
+
 
 Version 3.1.4 (March 24th, 2020)
 --------------------------------
@@ -177,6 +384,7 @@ None
 
 None
 
+
 Version 3.1.3 (March 17th, 2020)
 --------------------------------
 
@@ -186,23 +394,38 @@ None
 
 **Backwards incompatible changes**
 
-None
+* Drop support for Python 3.4. Thank you, @hugovk!
+
+* Drop deprecated ``setup.py test`` support. Thank you, @jdufresne! (#507)
 
 **Features**
 
-* Add relative link to code of conduct. (#442)
+* Add support for Python 3.8. Thank you, @jdufresne!
 
-* Drop deprecated 'setup.py test' support. (#507)
+* Add support for PyPy 7. Thank you, @hugovk!
 
-* Fix typo: curren -> current in tests/test_clean.py (#504)
-
-* Test on PyPy 7
-
-* Drop test support for end of life Python 3.4
+* Add pypy3 testing to tox and travis. Thank you, @jdufresne!
 
 **Bug fixes**
 
-None
+* Add relative link to code of conduct. (#442)
+
+* Fix typo: curren -> current in tests/test_clean.py Thank you, timgates42! (#504)
+
+* Fix handling of non-ascii style attributes. Thank you, @sekineh! (#426)
+
+* Simplify tox configuration. Thank you, @jdufresne!
+
+* Make documentation reproducible. Thank you, @lamby!
+
+* Fix typos in code comments. Thank you, @zborboa-g!
+
+* Fix exception value testing. Thank you, @mastizada!
+
+* Fix parser-tags NoneType exception. Thank you, @bope!
+
+* Improve TLD support in linkify. Thank you, @pc-coholic!
+
 
 Version 3.1.2 (March 11th, 2020)
 --------------------------------
@@ -238,6 +461,7 @@ None
 
 None
 
+
 Version 3.1.1 (February 13th, 2020)
 -----------------------------------
 
@@ -269,6 +493,7 @@ None
 **Bug fixes**
 
 None
+
 
 Version 3.1.0 (January 9th, 2019)
 ---------------------------------
@@ -545,9 +770,9 @@ Version 2.0 (March 8th, 2017)
 
 **Backwards incompatible changes**
 
-* Removed support for Python 2.6. #206
+* Removed support for Python 2.6. (#206)
 
-* Removed support for Python 3.2. #224
+* Removed support for Python 3.2. (#224)
 
 * Bleach no longer supports html5lib < 0.99999999 (8 9s).
 
@@ -660,32 +885,32 @@ Version 1.5 (November 4th, 2016)
 
   Previously it was a long list of protocols something like ed2k, ftp, http,
   https, irc, mailto, news, gopher, nntp, telnet, webcal, xmpp, callto, feed,
-  urn, aim, rsync, tag, ssh, sftp, rtsp, afs, data. #149
+  urn, aim, rsync, tag, ssh, sftp, rtsp, afs, data. (#149)
 
 **Changes**
 
 * clean: Added ``protocols`` to arguments list to let you override the list of
-  allowed protocols. Thank you, Andreas Malecki! #149
+  allowed protocols. Thank you, Andreas Malecki! (#149)
 
 * linkify: Fix a bug involving periods at the end of an email address. Thank you,
-  Lorenz Schori! #219
+  Lorenz Schori! (#219)
 
 * linkify: Fix linkification of non-ascii ports. Thank you Alexandre, Macabies!
-  #207
+  (#207)
 
 * linkify: Fix linkify inappropriately removing node tails when dropping nodes.
-  #132
+  (#132)
 
-* Fixed a test that failed periodically. #161
+* Fixed a test that failed periodically. (#161)
 
-* Switched from nose to py.test. #204
+* Switched from nose to py.test. (#204)
 
-* Add test matrix for all supported Python and html5lib versions. #230
+* Add test matrix for all supported Python and html5lib versions. (#230)
 
 * Limit to html5lib ``>=0.999,!=0.9999,!=0.99999,<0.99999999`` because 0.9999
   and 0.99999 are busted.
 
-* Add support for ``python setup.py test``. #97
+* Add support for ``python setup.py test``. (#97)
 
 
 Version 1.4.3 (May 23rd, 2016)
@@ -706,13 +931,13 @@ Version 1.4.2 (September 11, 2015)
 
 **Changes**
 
-* linkify: Fix hang in linkify with ``parse_email=True``. #124
+* linkify: Fix hang in linkify with ``parse_email=True``. (#124)
 
-* linkify: Fix crash in linkify when removing a link that is a first-child. #136
+* linkify: Fix crash in linkify when removing a link that is a first-child. (#136)
 
 * Updated TLDs.
 
-* linkify: Don't remove exterior brackets when linkifying. #146
+* linkify: Don't remove exterior brackets when linkifying. (#146)
 
 
 Version 1.4.1 (December 15, 2014)

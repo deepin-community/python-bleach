@@ -1,16 +1,19 @@
 From: Debian Python Modules Team
  <python-modules-team@lists.alioth.debian.org>
 Date: Tue, 15 Jan 2019 00:39:20 -0500
-Subject: remove-privacy-breach
+Subject: Privacy: Don't link to external resources
 
-===================================================================
+Linking to external data can end up in a privacy breach, removing non
+needed SVG files which are linked to external URLs.
+
+Forwarded: not-needed
 ---
  README.rst               | 9 ---------
  tests_website/index.html | 5 -----
  2 files changed, 14 deletions(-)
 
 diff --git a/README.rst b/README.rst
-index 504e517..ff969f8 100644
+index 6adaefa..1e3c956 100644
 --- a/README.rst
 +++ b/README.rst
 @@ -2,15 +2,6 @@
@@ -26,8 +29,8 @@ index 504e517..ff969f8 100644
 -.. image:: https://badge.fury.io/py/bleach.svg
 -   :target: http://badge.fury.io/py/bleach
 -
- Bleach is an allowed-list-based HTML sanitizing library that escapes or strips
- markup and attributes.
+ **NOTE: 2023-01-23: Bleach is deprecated.** See issue:
+ `<https://github.com/mozilla/bleach/issues/698>`__
  
 diff --git a/tests_website/index.html b/tests_website/index.html
 index 95df20f..056cb23 100644

@@ -48,7 +48,7 @@ def test_mangle_link():
     def filter_url(attrs, new=False):
         if not attrs.get((None, "href"), "").startswith("http://bouncer"):
             quoted = quote_plus(attrs[(None, "href")])
-            attrs[(None, "href")] = "http://bouncer/?u={0!s}".format(quoted)
+            attrs[(None, "href")] = f"http://bouncer/?u={quoted}"
         return attrs
 
     assert (
@@ -71,7 +71,7 @@ def test_mangle_text():
 
 
 @pytest.mark.parametrize(
-    "data,parse_email,expected",
+    "data, parse_email, expected",
     [
         ("a james@example.com mailto", False, "a james@example.com mailto"),
         ("a james@example.com.au mailto", False, "a james@example.com.au mailto"),
@@ -104,6 +104,17 @@ def test_mangle_text():
         ),
         # Incorrect email
         ('"\\\n"@opa.ru', True, '"\\\n"@opa.ru'),
+        # RFC6068 special characters
+        (
+            "gorby%kremvax@example.com",
+            True,
+            '<a href="mailto:gorby%25kremvax@example.com">gorby%kremvax@example.com</a>',
+        ),
+        (
+            "unlikely?address@example.com",
+            True,
+            '<a href="mailto:unlikely%3Faddress@example.com">unlikely?address@example.com</a>',
+        ),
     ],
 )
 def test_email_link(data, parse_email, expected):
@@ -115,15 +126,15 @@ def test_email_link(data, parse_email, expected):
     [
         (
             '"james"@example.com',
-            """<a href='mailto:"james"@example.com'>"james"@example.com</a>""",
+            """<a href="mailto:%22james%22@example.com">"james"@example.com</a>""",
         ),
         (
             '"j\'ames"@example.com',
-            """<a href="mailto:&quot;j'ames&quot;@example.com">"j'ames"@example.com</a>""",
+            """<a href="mailto:%22j%27ames%22@example.com">"j'ames"@example.com</a>""",
         ),
         (
             '"ja>mes"@example.com',
-            """<a href='mailto:"ja>mes"@example.com'>"ja&gt;mes"@example.com</a>""",
+            """<a href="mailto:%22ja%3Emes%22@example.com">"ja&gt;mes"@example.com</a>""",
         ),
     ],
 )
@@ -148,7 +159,7 @@ def noop(attrs, new=False):
 
 
 @pytest.mark.parametrize(
-    "callback,expected",
+    "callback, expected",
     [
         (
             [noop],
@@ -210,7 +221,7 @@ def test_stop_email():
 
 
 @pytest.mark.parametrize(
-    "data,expected",
+    "data, expected",
     [
         # tlds
         ("example.com", '<a href="http://example.com" rel="nofollow">example.com</a>'),
@@ -232,7 +243,7 @@ def test_tlds(data, expected):
 
 
 @pytest.mark.parametrize(
-    "data,expected",
+    "data, expected",
     [
         ("< unrelated", "&lt; unrelated"),
         ("<U \x7f=&#;>", '<u \x7f="&amp;#;"></u>'),
@@ -276,18 +287,24 @@ def test_add_rel_nofollow():
 
 
 def test_url_with_path():
-    assert (
-        linkify("http://example.com/path/to/file")
-        == '<a href="http://example.com/path/to/file" rel="nofollow">'
-        "http://example.com/path/to/file</a>"
+    assert linkify("http://example.com/path/to/file") == (
+        '<a href="http://example.com/path/to/file" rel="nofollow">'
+        + "http://example.com/path/to/file</a>"
     )
 
 
 def test_link_ftp():
-    assert (
-        linkify("ftp://ftp.mozilla.org/some/file")
-        == '<a href="ftp://ftp.mozilla.org/some/file" rel="nofollow">'
-        "ftp://ftp.mozilla.org/some/file</a>"
+    assert linkify("ftp://ftp.mozilla.org/some/file") == (
+        '<a href="ftp://ftp.mozilla.org/some/file" rel="nofollow">'
+        + "ftp://ftp.mozilla.org/some/file</a>"
+    )
+
+
+def test_link_with_qs_with_array():
+    """Test that urls pick up [] in querystring"""
+    assert linkify("http://test.com?array[]=1&params_in[]=2") == (
+        '<a href="http://test.com?array[]=1&amp;params_in[]=2" '
+        + 'rel="nofollow">http://test.com?array[]=1&amp;params_in[]=2</a>'
     )
 
 
@@ -313,10 +330,24 @@ def test_link_fragment():
     )
 
 
-def test_link_entities():
+def test_link_entities_in_qs():
+    """Entities in the querystring get escaped"""
     assert (
         linkify("http://xx.com/?a=1&b=2")
         == '<a href="http://xx.com/?a=1&amp;b=2" rel="nofollow">http://xx.com/?a=1&amp;b=2</a>'
+    )
+
+
+def test_link_entities_in_characters_token():
+    """Entitites in a Characters token don't get escaped"""
+    assert linkify("foo &nbsp; bar") == "foo &nbsp; bar"
+
+
+def test_link_entities_in_a_tag():
+    """Entitites between an a start tag and an a end tag don't get escaped"""
+    assert (
+        linkify('<a href="/">Some&nbsp;entity&rsquo;s</a>', callbacks=[])
+        == '<a href="/">Some&nbsp;entity&rsquo;s</a>'
     )
 
 
@@ -327,10 +358,9 @@ def test_escaped_html():
 
 
 def test_link_http_complete():
-    assert (
-        linkify("https://user:pass@ftp.mozilla.org/x/y.exe?a=b&c=d&e#f")
-        == '<a href="https://user:pass@ftp.mozilla.org/x/y.exe?a=b&amp;c=d&amp;e#f" rel="nofollow">'
-        "https://user:pass@ftp.mozilla.org/x/y.exe?a=b&amp;c=d&amp;e#f</a>"
+    assert linkify("https://user:pass@ftp.mozilla.org/x/y.exe?a=b&c=d&e#f") == (
+        '<a href="https://user:pass@ftp.mozilla.org/x/y.exe?a=b&amp;c=d&amp;e#f" rel="nofollow">'
+        + "https://user:pass@ftp.mozilla.org/x/y.exe?a=b&amp;c=d&amp;e#f</a>"
     )
 
 
@@ -348,10 +378,9 @@ def test_javascript_url():
 
 def test_unsafe_url():
     """Any unsafe char ({}[]<>, etc.) in the path should end URL scanning."""
-    assert (
-        linkify('All your{"xx.yy.com/grover.png"}base are')
-        == 'All your{"<a href="http://xx.yy.com/grover.png" rel="nofollow">xx.yy.com/grover.png</a>"}'
-        "base are"
+    assert linkify('All your{"xx.yy.com/grover.png"}base are') == (
+        'All your{"<a href="http://xx.yy.com/grover.png" rel="nofollow">xx.yy.com/grover.png</a>"}'
+        + "base are"
     )
 
 
@@ -360,27 +389,27 @@ def test_skip_tags():
     simple = "http://xx.com <pre>http://xx.com</pre>"
     linked = (
         '<a href="http://xx.com" rel="nofollow">http://xx.com</a> '
-        "<pre>http://xx.com</pre>"
+        + "<pre>http://xx.com</pre>"
     )
     all_linked = (
         '<a href="http://xx.com" rel="nofollow">http://xx.com</a> '
-        '<pre><a href="http://xx.com" rel="nofollow">http://xx.com'
-        "</a></pre>"
+        + '<pre><a href="http://xx.com" rel="nofollow">http://xx.com'
+        + "</a></pre>"
     )
-    assert linkify(simple, skip_tags=["pre"]) == linked
+    assert linkify(simple, skip_tags={"pre"}) == linked
     assert linkify(simple) == all_linked
 
     already_linked = '<pre><a href="http://xx.com">xx</a></pre>'
     nofollowed = '<pre><a href="http://xx.com" rel="nofollow">xx</a></pre>'
     assert linkify(already_linked) == nofollowed
-    assert linkify(already_linked, skip_tags=["pre"]) == nofollowed
+    assert linkify(already_linked, skip_tags={"pre"}) == nofollowed
 
     assert linkify(
         "<pre><code>http://example.com</code></pre>http://example.com",
-        skip_tags=["pre"],
+        skip_tags={"pre"},
     ) == (
         "<pre><code>http://example.com</code></pre>"
-        '<a href="http://example.com" rel="nofollow">http://example.com</a>'
+        + '<a href="http://example.com" rel="nofollow">http://example.com</a>'
     )
 
 
@@ -391,7 +420,7 @@ def test_libgl():
 
 
 @pytest.mark.parametrize(
-    "url,periods",
+    "url, periods",
     [
         ("example.com", "."),
         ("example.com", "..."),
@@ -401,10 +430,10 @@ def test_libgl():
 )
 def test_end_of_sentence(url, periods):
     """example.com. should match."""
-    out = '<a href="http://{0!s}" rel="nofollow">{0!s}</a>{1!s}'
-    intxt = "{0!s}{1!s}"
-
-    assert linkify(intxt.format(url, periods)) == out.format(url, periods)
+    assert (
+        linkify(f"{url}{periods}")
+        == f'<a href="http://{url}" rel="nofollow">{url}</a>{periods}'
+    )
 
 
 def test_end_of_clause():
@@ -421,86 +450,143 @@ def test_sarcasm():
 
 
 @pytest.mark.parametrize(
-    "data,expected_data",
+    "data, expected_parts",
     [
-        ("(example.com)", ("(", "example.com", "example.com", ")")),
-        ("(example.com/)", ("(", "example.com/", "example.com/", ")")),
-        ("(example.com/foo)", ("(", "example.com/foo", "example.com/foo", ")")),
-        ("(((example.com/))))", ("(((", "example.com/", "example.com/", "))))")),
-        ("example.com/))", ("", "example.com/", "example.com/", "))")),
+        (
+            "(example.com)",
+            {
+                "before": "(",
+                "url": "http://example.com",
+                "text": "example.com",
+                "after": ")",
+            },
+        ),
+        (
+            "(example.com/)",
+            {
+                "before": "(",
+                "url": "http://example.com/",
+                "text": "example.com/",
+                "after": ")",
+            },
+        ),
+        (
+            "(example.com/foo)",
+            {
+                "before": "(",
+                "url": "http://example.com/foo",
+                "text": "example.com/foo",
+                "after": ")",
+            },
+        ),
+        (
+            "(((example.com/))))",
+            {
+                "before": "(((",
+                "url": "http://example.com/",
+                "text": "example.com/",
+                "after": "))))",
+            },
+        ),
+        (
+            "example.com/))",
+            {
+                "before": "",
+                "url": "http://example.com/",
+                "text": "example.com/",
+                "after": "))",
+            },
+        ),
         (
             "(foo http://example.com/)",
-            ("(foo ", "example.com/", "http://example.com/", ")"),
+            {
+                "before": "(foo ",
+                "url": "http://example.com/",
+                "text": "http://example.com/",
+                "after": ")",
+            },
         ),
         (
             "(foo http://example.com)",
-            ("(foo ", "example.com", "http://example.com", ")"),
+            {
+                "before": "(foo ",
+                "url": "http://example.com",
+                "text": "http://example.com",
+                "after": ")",
+            },
         ),
         (
             "http://en.wikipedia.org/wiki/Test_(assessment)",
-            (
-                "",
-                "en.wikipedia.org/wiki/Test_(assessment)",
-                "http://en.wikipedia.org/wiki/Test_(assessment)",
-                "",
-            ),
+            {
+                "before": "",
+                "url": "http://en.wikipedia.org/wiki/Test_(assessment)",
+                "text": "http://en.wikipedia.org/wiki/Test_(assessment)",
+                "after": "",
+            },
         ),
         (
             "(http://en.wikipedia.org/wiki/Test_(assessment))",
-            (
-                "(",
-                "en.wikipedia.org/wiki/Test_(assessment)",
-                "http://en.wikipedia.org/wiki/Test_(assessment)",
-                ")",
-            ),
+            {
+                "before": "(",
+                "url": "http://en.wikipedia.org/wiki/Test_(assessment)",
+                "text": "http://en.wikipedia.org/wiki/Test_(assessment)",
+                "after": ")",
+            },
         ),
         (
             "((http://en.wikipedia.org/wiki/Test_(assessment))",
-            (
-                "((",
-                "en.wikipedia.org/wiki/Test_(assessment",
-                "http://en.wikipedia.org/wiki/Test_(assessment",
-                "))",
-            ),
+            {
+                "before": "((",
+                "url": "http://en.wikipedia.org/wiki/Test_(assessment",
+                "text": "http://en.wikipedia.org/wiki/Test_(assessment",
+                "after": "))",
+            },
         ),
         (
             "(http://en.wikipedia.org/wiki/Test_(assessment)))",
-            (
-                "(",
-                "en.wikipedia.org/wiki/Test_(assessment))",
-                "http://en.wikipedia.org/wiki/Test_(assessment))",
-                ")",
-            ),
+            {
+                "before": "(",
+                "url": "http://en.wikipedia.org/wiki/Test_(assessment))",
+                "text": "http://en.wikipedia.org/wiki/Test_(assessment))",
+                "after": ")",
+            },
         ),
         (
             "(http://en.wikipedia.org/wiki/)Test_(assessment",
-            (
-                "(",
-                "en.wikipedia.org/wiki/)Test_(assessment",
-                "http://en.wikipedia.org/wiki/)Test_(assessment",
-                "",
-            ),
+            {
+                "before": "(",
+                "url": "http://en.wikipedia.org/wiki/)Test_(assessment",
+                "text": "http://en.wikipedia.org/wiki/)Test_(assessment",
+                "after": "",
+            },
         ),
         (
             "hello (http://www.mu.de/blah.html) world",
-            ("hello (", "www.mu.de/blah.html", "http://www.mu.de/blah.html", ") world"),
+            {
+                "before": "hello (",
+                "url": "http://www.mu.de/blah.html",
+                "text": "http://www.mu.de/blah.html",
+                "after": ") world",
+            },
         ),
         (
             "hello (http://www.mu.de/blah.html). world",
-            (
-                "hello (",
-                "www.mu.de/blah.html",
-                "http://www.mu.de/blah.html",
-                "). world",
-            ),
+            {
+                "before": "hello (",
+                "url": "http://www.mu.de/blah.html",
+                "text": "http://www.mu.de/blah.html",
+                "after": "). world",
+            },
         ),
     ],
 )
-def test_wrapping_parentheses(data, expected_data):
+def test_wrapping_parentheses(data, expected_parts):
     """URLs wrapped in parantheses should not include them."""
-    out = '{0!s}<a href="http://{1!s}" rel="nofollow">{2!s}</a>{3!s}'
-
-    assert linkify(data) == out.format(*expected_data)
+    before = expected_parts["before"]
+    url = expected_parts["url"]
+    text = expected_parts["text"]
+    after = expected_parts["after"]
+    assert linkify(data) == f'{before}<a href="{url}" rel="nofollow">{text}</a>{after}'
 
 
 def test_parentheses_with_removing():
@@ -509,27 +595,30 @@ def test_parentheses_with_removing():
 
 
 @pytest.mark.parametrize(
-    "data,expected_data",
+    "data, expected_url, expected_after",
     [
         # Test valid ports
-        ("http://foo.com:8000", ("http://foo.com:8000", "")),
-        ("http://foo.com:8000/", ("http://foo.com:8000/", "")),
+        ("http://foo.com:8000", "http://foo.com:8000", ""),
+        ("http://foo.com:8000/", "http://foo.com:8000/", ""),
         # Test non ports
-        ("http://bar.com:xkcd", ("http://bar.com", ":xkcd")),
-        ("http://foo.com:81/bar", ("http://foo.com:81/bar", "")),
-        ("http://foo.com:", ("http://foo.com", ":")),
+        ("http://bar.com:xkcd", "http://bar.com", ":xkcd"),
+        ("http://foo.com:81/bar", "http://foo.com:81/bar", ""),
+        ("http://foo.com:", "http://foo.com", ":"),
         # Test non-ascii ports
-        ("http://foo.com:\u0663\u0669/", ("http://foo.com", ":\u0663\u0669/")),
+        ("http://foo.com:\u0663\u0669/", "http://foo.com", ":\u0663\u0669/"),
         (
             "http://foo.com:\U0001d7e0\U0001d7d8/",
-            ("http://foo.com", ":\U0001d7e0\U0001d7d8/"),
+            "http://foo.com",
+            ":\U0001d7e0\U0001d7d8/",
         ),
     ],
 )
-def test_ports(data, expected_data):
+def test_ports(data, expected_url, expected_after):
     """URLs can contain port numbers."""
-    out = '<a href="{0}" rel="nofollow">{0}</a>{1}'
-    assert linkify(data) == out.format(*expected_data)
+    assert (
+        linkify(data)
+        == f'<a href="{expected_url}" rel="nofollow">{expected_url}</a>{expected_after}'
+    )
 
 
 def test_ignore_bad_protocols():
@@ -544,8 +633,8 @@ def test_link_emails_and_urls():
     """parse_email=True shouldn't prevent URLs from getting linkified."""
     assert linkify("http://example.com person@example.com", parse_email=True) == (
         '<a href="http://example.com" rel="nofollow">'
-        'http://example.com</a> <a href="mailto:person@example.com">'
-        "person@example.com</a>"
+        + 'http://example.com</a> <a href="mailto:person@example.com">'
+        + "person@example.com</a>"
     )
 
 
@@ -571,7 +660,7 @@ def test_drop_link_tags():
     """Verify that dropping link tags *just* drops the tag and not the content"""
     html = (
         'first <a href="http://example.com/1/">second</a> third <a href="http://example.com/2/">'
-        "fourth</a> fifth"
+        + "fourth</a> fifth"
     )
     assert (
         linkify(html, callbacks=[lambda attrs, new: None])
@@ -648,23 +737,34 @@ def test_email_re_arg():
 def test_recognized_tags_arg():
     """Verifies that recognized_tags works"""
     # The html parser doesn't recognize "sarcasm" as a tag, so it escapes it
-    linker = Linker(recognized_tags=["p"])
+    linker = Linker(recognized_tags={"p"})
     assert (
         linker.linkify("<p>http://example.com/</p><sarcasm>")
         == '<p><a href="http://example.com/" rel="nofollow">http://example.com/</a></p>&lt;sarcasm&gt;'  # noqa
     )
 
     # The html parser recognizes "sarcasm" as a tag and fixes it
-    linker = Linker(recognized_tags=["p", "sarcasm"])
+    linker = Linker(recognized_tags={"p", "sarcasm"})
     assert (
         linker.linkify("<p>http://example.com/</p><sarcasm>")
         == '<p><a href="http://example.com/" rel="nofollow">http://example.com/</a></p><sarcasm></sarcasm>'  # noqa
     )
 
 
-def test_linkify_idempotent():
-    dirty = "<span>invalid & </span> < extra http://link.com<em>"
-    assert linkify(linkify(dirty)) == linkify(dirty)
+@pytest.mark.parametrize(
+    "data",
+    [
+        "<span>text & </span>",
+        "a < b",
+        "link http://link.com",
+        "text<em>",
+        "jim &current joe",
+        # Link with querystring items
+        '<a href="http://example.com?foo=bar&bar=foo&amp;biz=bash">',
+    ],
+)
+def test_linkify_idempotent(data):
+    assert linkify(linkify(data)) == linkify(data)
 
 
 class TestLinkify:
@@ -674,7 +774,7 @@ class TestLinkify:
 
     def test_rel_already_there(self):
         """Make sure rel attribute is updated not replaced"""
-        linked = 'Click <a href="http://example.com" rel="tooltip">' "here</a>."
+        linked = 'Click <a href="http://example.com" rel="tooltip">here</a>.'
 
         link_good = (
             'Click <a href="http://example.com" rel="tooltip nofollow">here</a>.'
